@@ -1,0 +1,108 @@
+-- GPL许可证 许可
+-- 作者：lifegpc
+-- 代码库 https://github.com/lifegpc/aesigublua
+local tr = aegisub.gettext
+clipboard = require 'aegisub.clipboard'
+
+script_name = tr"从剪贴板导入LRC"
+script_description = tr"从剪贴板导入LRC（如果选中行内容为空，该行将被覆盖，反之则插入至下一行）"
+script_author = "lifegpc"
+script_version = "1"
+
+function iflrc(subs,sel)
+    local text=clipboard.get()
+    local lines={}
+    for s in text:gmatch("[^\r\n]+") do
+        table.insert(lines,s)
+    end
+    local tq={60000,1000,10} --对应的毫秒数
+    local r={}
+    local ll=0
+    for i,line in ipairs(lines) do
+        local i3=1
+        local ta={}
+        local str=line
+        local has=false
+        for s in line:gmatch("%[[0-9][0-9]:[0-5][0-9].[0-9][0-9]%]") do
+            has=true
+            local i2=1
+            local t=0
+            for s2 in s:gmatch("[0-9][0-9]") do
+                t=t+s2*tq[i2]
+                i2=i2+1
+            end
+            ta[i3]=t
+            i3=i3+1
+            str=str:sub(11)
+        end
+        if has==true then
+            for i,v in ipairs(ta) do
+                if r[v]==nli then
+                    r[v]={}
+                end
+                ll=ll+1
+                table.insert(r[v],str)
+            end
+        end
+    end
+    local re={}
+    for i,_ in pairs(r) do
+        table.insert(re,i)
+    end
+    local l=#re
+    local i=1
+    while i<=l do--进行排序
+        local j=1
+        while j<=l-i do
+            if re[j] > re[j+1] then
+                local t=re[j]
+                re[j]=re[j+1]
+                re[j+1]=t
+            end
+            j=j+1
+        end
+        i=i+1
+    end
+    local now=sel[#sel]
+    local ii=1
+    local ml=subs[now]
+    local ofs=0
+    if ml.text=="" then
+        ofs=ml.start_time
+    else
+        ofs=ml.end_time
+    end
+    local i=1
+    while i<=l do
+        for _,v in pairs(r[re[i]]) do
+            local line=ml
+            if ii==1 and ml.text=="" then
+                line.text=v
+                if i<l then
+                    line.end_time=re[i+1]+ofs-10
+                end
+                subs[now]=line
+                now=now+1
+                ii=ii+1
+            else
+                if ii==1 then
+                    now=now+1
+                end
+                line.start_time=re[i]+ofs
+                if i<l then
+                    line.end_time=re[i+1]+ofs-10
+                else
+                    line.end_time=re[i]+ofs+2000
+                end
+                line.text=v
+                subs.insert(now,line)
+                now=now+1
+                ii=ii+1
+            end
+        end
+        i=i+1
+    end
+    aegisub.set_undo_point(tr"从剪贴板导入LRC")
+end
+
+aegisub.register_macro(script_name, script_description, iflrc)
