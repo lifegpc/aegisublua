@@ -5,7 +5,7 @@ local tr = aegisub.gettext
 clipboard = require 'aegisub.clipboard'
 
 script_name = tr"从剪贴板导入LRC"
-script_description = tr"从剪贴板导入LRC（如果选中行内容为空，该行将被覆盖，反之则插入至下一行）"
+script_description = tr"从剪贴板导入LRC（如果选中行内容为空，该行将被覆盖，反之则插入至下一行）\n最小的时间将会被设为0以适应插入一部分歌词的情况。"
 script_author = "lifegpc"
 script_version = "1"
 
@@ -51,7 +51,7 @@ function iflrc(subs,sel)
     end
     local l=#re
     local i=1
-    while i<=l do--进行排序
+    while i<=l do--进行升序排序
         local j=1
         while j<=l-i do
             if re[j] > re[j+1] then
@@ -62,6 +62,17 @@ function iflrc(subs,sel)
             j=j+1
         end
         i=i+1
+    end
+    if l>=1 then
+        local t=re[1]
+        for k,v in pairs(re) do
+            re[k]=v-t
+        end
+        local temp={}
+        for k,v in pairs(r) do
+            temp[k-t]=v
+        end
+        r=temp
     end
     local now=sel[#sel]
     local ii=1
