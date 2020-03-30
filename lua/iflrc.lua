@@ -4,13 +4,13 @@
 local tr = aegisub.gettext
 clipboard = require 'aegisub.clipboard'
 
-script_name = tr"从剪贴板导入LRC"
-script_description = tr"从剪贴板导入LRC（如果选中行内容为空，该行将被覆盖，反之则插入至下一行）\n最小的时间将会被设为0以适应插入一部分歌词的情况。"
+tip="\n（如果选中行内容为空，该行将被覆盖，反之则插入至下一行）\n最小的时间将会被设为0以适应插入一部分歌词的情况"
+script_name = tr"导入LRC"
+script_description = tr"导入LRC歌词，支持从剪贴板/文件中导入。"..tip
 script_author = "lifegpc"
 script_version = "1"
 
-function iflrc(subs,sel)
-    local text=clipboard.get()
+function cl(subs,sel,text)
     local lines={}
     for s in text:gmatch("[^\r\n]+") do
         table.insert(lines,s)
@@ -113,7 +113,26 @@ function iflrc(subs,sel)
         end
         i=i+1
     end
+end
+
+function iflrc(subs,sel)
+    cl(subs,sel,clipboard.get())
     aegisub.set_undo_point(tr"从剪贴板导入LRC")
 end
 
-aegisub.register_macro(script_name, script_description, iflrc)
+function iflrc2(subs,sel)
+    local fn=aegisub.dialog.open("打开LRC","","","歌词文件(*.lrc)|*.lrc|所有文件(*)|*",false,true)
+    if fn~=nli then
+        local f=io.open(fn,"r")
+        if f~=nli then
+            local text=f:read("*a")
+            if text ~= nli then
+                cl(subs,sel,text)
+                aegisub.set_undo_point(tr"从文件导入LRC")
+            end
+        end
+    end
+end
+
+aegisub.register_macro(tr"从剪贴板导入LRC", tr"从剪贴板导入LRC。"..tip, iflrc)
+aegisub.register_macro(tr"从文件导入LRC", tr"从文件导入LRC。"..tip, iflrc2)
