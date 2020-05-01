@@ -75,7 +75,7 @@ function etvtt(subs,sel)
             end
             f:write("\n"..gett(i).." --> "..gett(et).."\n")
             for _1,k in pairs(s[i]) do
-                f:write(k.."\n")
+                f:write(cl(k).."\n")
             end
         end
     end
@@ -140,7 +140,7 @@ function gett(t)
 end
 --处理文本
 function cl(text)
-    text=text:gsub("{[^}]+}","")
+    text=text:gsub("{[^}]*}","")
     text=text:gsub("\\n","")
     text=text:gsub("\\N","\n")
     return text
