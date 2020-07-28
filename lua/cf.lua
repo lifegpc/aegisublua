@@ -17,6 +17,9 @@ config = {
 
 function cf(subs,sels,sel)
     btn, result = aegisub.dialog.display(config)
+    if btn==false then
+        return 0
+    end
     local cf=result["cf"]
     local ct=result["ct"]
     local ml=subs[sel]
