@@ -8,9 +8,9 @@ tip="\n（如果选中行内容为空，该行将被覆盖，反之则插入至�
 script_name = tr"导入LRC"
 script_description = tr"导入LRC歌词，支持从剪贴板/文件中导入。"..tip
 script_author = "lifegpc"
-script_version = "1"
+script_version = "1.1"
 
-function cl(subs,sel,text)
+function cl(subs,sel,text, conf)
     local lines={}
     for s in text:gmatch("[^\r\n]+") do
         table.insert(lines,s)
@@ -18,6 +18,7 @@ function cl(subs,sel,text)
     local tq={60000,1000,10} --对应的毫秒数
     local r={}
     local ll=0
+    local comm = {}
     for i,line in ipairs(lines) do
         local i3=1
         local ta={}
@@ -37,11 +38,19 @@ function cl(subs,sel,text)
         end
         if has==true then
             for i,v in ipairs(ta) do
-                if r[v]==nli then
+                if r[v]==nil then
                     r[v]={}
                 end
                 ll=ll+1
+                if conf.slash then
+                    str = str:gsub(" / ", "\\N")
+                end
                 table.insert(r[v],str)
+            end
+        else
+            local m = line:match('%[[^%]]+%]')
+            if m ~= nil then
+                table.insert(comm, m)
             end
         end
     end
@@ -65,6 +74,9 @@ function cl(subs,sel,text)
     end
     if l>=1 then
         local t=re[1]
+        if conf.keeporgtime then
+            t = 0
+        end
         for k,v in pairs(re) do
             re[k]=v-t
         end
@@ -78,16 +90,32 @@ function cl(subs,sel,text)
     local ii=1
     local ml=subs[now]
     local ofs=0
-    if ml.text=="" then
-        ofs=ml.start_time
-    else
-        ofs=ml.end_time
+    if not conf.keeporgtime then
+        if ml.text=="" then
+            ofs=ml.start_time
+        else
+            ofs=ml.end_time
+        end
     end
+    local oml = ml.text
+    local ocom = ml.comment
+    for _, m in pairs(comm) do
+        local line = ml
+        line.text = m
+        line.comment = true
+        subs.insert(now, line)
+        now = now + 1
+    end
+    ml.text = oml
+    ml.comment = ocom
     local i=1
     while i<=l do
         for _,v in pairs(r[re[i]]) do
             local line=ml
             if ii==1 and ml.text=="" then
+                if conf.keeporgtime then
+                    line.start_time = re[i]
+                end
                 line.text=v
                 if i<l then
                     line.end_time=re[i+1]+ofs-10
@@ -115,20 +143,72 @@ function cl(subs,sel,text)
     end
 end
 
+local iflrc_config = {
+    {class="checkbox", x=0, y=0, label="保留原始时间", name="keeporgtime"},
+    {class="checkbox", x=0, y=1, label="将 / 视为换行", name="slash"},
+}
+
 function iflrc(subs,sel)
-    cl(subs,sel,clipboard.get())
-    aegisub.set_undo_point(tr"从剪贴板导入LRC")
+    local btn, cfg = aegisub.dialog.display(iflrc_config)
+    if btn then
+        cl(subs, sel, clipboard.get(), cfg)
+        aegisub.set_undo_point(tr"从剪贴板导入LRC")
+    end
 end
 
 function iflrc2(subs,sel)
-    local fn=aegisub.dialog.open("打开LRC","","","歌词文件(*.lrc)|*.lrc|所有文件(*)|*",false,true)
-    if fn~=nli then
-        local f=io.open(fn,"r")
-        if f~=nli then
-            local text=f:read("*a")
-            if text ~= nli then
-                cl(subs,sel,text)
-                aegisub.set_undo_point(tr"从文件导入LRC")
+    local btn, cfg = aegisub.dialog.display(iflrc_config)
+    if btn then
+        local fn = aegisub.dialog.open("打开LRC","","","歌词文件(*.lrc)|*.lrc|所有文件(*)|*",false,true)
+        if fn ~= nil then
+            local f=io.open(fn,"r")
+            if f~=nil then
+                local text=f:read("*a")
+                if text ~= nil then
+                    cl(subs, sel, text, cfg)
+                    aegisub.set_undo_point(tr"从文件导入LRC")
+                end
+            end
+        end
+    end
+end
+
+local oflrc_config = {
+    {class="checkbox", name="mullrc", x=0, y=0, label="以 / 分隔多行歌词"},
+}
+
+function oflrc(subs, sel)
+    local btn, re = aegisub.dialog.display(oflrc_config)
+    if btn then
+        local fn = aegisub.dialog.save('保存LRC', "", "", "歌词文件(*.lrc)|*.lrc|所有文件(*)|*", false)
+        if fn ~= nil then
+            local f = io.open(fn, 'w')
+            local num_lines = #subs
+            for i = 1, num_lines do
+                local line = subs[i]
+                if line.class == "dialogue" and line.comment then
+                    local t = line.text:match('%[[^%]]+%]')
+                    if t ~= nil then
+                        f:write(line.text .. '\n')
+                    end
+                end
+            end
+            for i = 1, num_lines do
+                local line = subs[i]
+                if line.class == "dialogue" and not line.comment then
+                    local st = line.start_time
+                    local timestr = "" .. string.format("%02d", math.floor(st / 60000)) .. ":" .. string.format("%02d", math.floor((st % 60000) / 1000)) .. "." .. string.format("%02d", math.floor((st % 1000) / 10))
+                    local text = line.text
+                    if re.mullrc then
+                        text = text:gsub("\\n", " / ")
+                        text = text:gsub("\\N", " / ")
+                        f:write("[" .. timestr .. "]" .. text .. "\n")
+                    else
+                        for s in text:gmatch("[^\\n\\N]+") do
+                            f:write("[" .. timestr .. "]" .. s .. "\n")
+                        end
+                    end
+                end
             end
         end
     end
@@ -136,3 +216,4 @@ end
 
 aegisub.register_macro(tr"从剪贴板导入LRC", tr"从剪贴板导入LRC。"..tip, iflrc)
 aegisub.register_macro(tr"从文件导入LRC", tr"从文件导入LRC。"..tip, iflrc2)
+aegisub.register_macro(tr"保存为LRC文件", tr"保存至LRC文件。"..tip, oflrc)
