@@ -8,7 +8,7 @@ tip="\n（如果选中行内容为空，该行将被覆盖，反之则插入至�
 script_name = tr"导入LRC"
 script_description = tr"导入LRC歌词，支持从剪贴板/文件中导入。"..tip
 script_author = "lifegpc"
-script_version = "1.1"
+script_version = "1.1.1"
 
 function cl(subs,sel,text, conf)
     local lines={}
@@ -175,6 +175,7 @@ end
 
 local oflrc_config = {
     {class="checkbox", name="mullrc", x=0, y=0, label="以 / 分隔多行歌词"},
+    {class="checkbox", name="dealendtime", x=0, y=1, label="处理结束时间", value=true},
 }
 
 function oflrc(subs, sel)
@@ -184,6 +185,7 @@ function oflrc(subs, sel)
         if fn ~= nil then
             local f = io.open(fn, 'w')
             local num_lines = #subs
+            local last_end_time = nil
             for i = 1, num_lines do
                 local line = subs[i]
                 if line.class == "dialogue" and line.comment then
@@ -197,6 +199,13 @@ function oflrc(subs, sel)
                 local line = subs[i]
                 if line.class == "dialogue" and not line.comment then
                     local st = line.start_time
+                    if re.dealendtime then
+                        if last_end_time ~= nil and last_end_time < st - 10 then
+                            local timestr = "" .. string.format("%02d", math.floor(last_end_time / 60000)) .. ":" .. string.format("%02d", math.floor((last_end_time % 60000) / 1000)) .. "." .. string.format("%02d", math.floor((last_end_time % 1000) / 10))
+                            f:write("[" .. timestr .. "]\n")
+                        end
+                        last_end_time = line.end_time
+                    end
                     local timestr = "" .. string.format("%02d", math.floor(st / 60000)) .. ":" .. string.format("%02d", math.floor((st % 60000) / 1000)) .. "." .. string.format("%02d", math.floor((st % 1000) / 10))
                     local text = line.text
                     if re.mullrc then
